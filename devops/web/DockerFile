@@ -1,0 +1,33 @@
+FROM php:7.4.14-apache
+
+# Set ENV variables
+ENV TIMEZONE=America/Sao_Paulo
+
+USER root
+
+# Update system and install required libs
+RUN apt-get update && apt-get install -y wget vim zip sudo curl
+
+# Activate the rewrite of URL's in apache
+# RUN a2enmod rewrite
+
+RUN echo "www-data  ALL = ( ALL ) NOPASSWD: ALL" >> /etc/sudoers
+
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin/ --filename=composer
+
+# Set timezone
+RUN ln -snf /usr/share/zoneinfo/${TIMEZONE} /etc/localtime && echo ${TIMEZONE} > /etc/timezone \
+&& printf '[PHP]\ndate.timezone = "%s"\n', ${TIMEZONE} > /usr/local/etc/php/conf.d/tzone.ini
+
+# Copy config files
+RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+
+# Setup apache configs
+COPY --chown=www-data:www-data ./. /var/www/html/
+COPY ./devops/web/server.conf /etc/apache2/sites-available/000-default.conf
+
+# Copy project files to image
+COPY --chown=www-data:www-data ./composer.json ./composer.lock ./symfony.lock /var/www/html/
+RUN composer install --verbose --no-interaction --no-scripts
+
+EXPOSE 80
